@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>法楽寺（神経衰弱）：GAME</title>
+
+<style>
+body{
+  margin:0;
+  font-family:sans-serif;
+  background:#222;
+  color:#fff;
+  display:flex;
+  justify-content:center;
+}
+#game{ width:360px; padding:12px; }
+
+/* 共通 */
+button{ cursor:pointer; }
+
+/* ===== パスワード画面 ===== */
+#passwordScreen{
+  text-align:center;
+}
+#passwordScreen input{
+  width:100%;
+  padding:10px;
+  font-size:18px;
+  margin-bottom:10px;
+}
+#passwordScreen button{
+  width:100%;
+  padding:10px;
+  font-size:18px;
+}
+
+/* TOP */
+#top{ display:none; text-align:center; }
+#title{ font-size:22px; margin-bottom:12px; }
+#modeSelect{ display:flex; gap:8px; margin-bottom:20px; }
+.modeBtn{ flex:1; padding:8px; }
+.modeBtn.active{ background:#ffd700; color:#000; }
+
+/* GAME */
+#startArea{ display:none; text-align:center; margin-bottom:10px; }
+#startBtn{ width:100%; padding:10px; font-size:18px; margin-bottom:10px; }
+#countdown{ font-size:56px; height:70px; line-height:70px; margin-bottom:6px; }
+#info{ display:flex; justify-content:space-between; margin-bottom:10px; }
+
+/* GRID */
+#grid{ display:grid; gap:8px; }
+.card{
+  aspect-ratio:1/1;
+  background:#444;
+  border-radius:8px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+  cursor:pointer;
+  transition:transform 1.2s cubic-bezier(.25,.8,.25,1);
+}
+.card img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  visibility:visible;
+  opacity:1;
+  transition:opacity 1s linear;
+}
+.card.open{ background:#fff; }
+.card.correct{ background:#0a0; }
+.card.wrong{ background:#a00; }
+</style>
+</head>
+
+<body>
+<div id="game">
+
+  <!-- ===== パスワード画面 ===== -->
+  <div id="passwordScreen">
+    <div id="title">法楽寺（神経衰弱）：GAME</div>
+    <input type="password" id="passwordInput" placeholder="パスワードを入力">
+    <button id="passwordBtn">ENTER</button>
+  </div>
+
+  <!-- ===== TOP ===== -->
+  <div id="top">
+    <div id="title">法楽寺（神経衰弱）：GAME</div>
+    <div id="modeSelect">
+      <button class="modeBtn" data-mode="text">文字</button>
+      <button class="modeBtn" data-mode="image">画像</button>
+      <button class="modeBtn" data-mode="both">文字と画像</button>
+    </div>
+  </div>
+
+  <!-- ===== GAME UI ===== -->
+  <div id="startArea">
+    <button id="startBtn">START</button>
+    <div id="countdown"></div>
+    <div id="info">
+      <div>LEVEL: <span id="level">1</span></div>
+      <div>SCORE: <span id="score">0</span></div>
+    </div>
+  </div>
+
+  <!-- GRID -->
+  <div id="grid"></div>
+</div>
+
+<script>
+/* ===== パスワード処理 ===== */
+const PASSWORD="1234";
+const passScreen=document.getElementById("passwordScreen");
+const topScreen=document.getElementById("top");
+
+document.getElementById("passwordBtn").onclick=()=>{
+  const val=document.getElementById("passwordInput").value;
+  if(val===PASSWORD){
+    passScreen.style.display="none";
+    topScreen.style.display="block";
+  }else{
+    alert("パスワードが違います");
+  }
+};
+
+/* ===== ゲーム本体 ===== */
+const LEVELS=[
+  {pairs:3,preview:5,time:10},
+  {pairs:6,preview:8,time:15},
+  {pairs:8,preview:10,time:20}
+];
+const PAIRS=["1","2","3","4","5","6","7","8","9","10","11","12","13"];
+
+let levelIndex=0, score=0, first=null, lock=false, canPlay=false;
+let gameMode=null, countdownTimer=null, playTimer=null, timeLeft=0;
+
+const grid=document.getElementById("grid");
+const cd=document.getElementById("countdown");
+const levelEl=document.getElementById("level");
+const scoreEl=document.getElementById("score");
+const startArea=document.getElementById("startArea");
+
+/* モード選択 */
+document.querySelectorAll(".modeBtn").forEach(btn=>{
+  btn.onclick=()=>{
+    document.querySelectorAll(".modeBtn").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    gameMode=btn.dataset.mode;
+    startArea.style.display="block";
+  };
+});
+
+document.getElementById("startBtn").onclick=startLevel;
+
+/* START */
+function startLevel(){
+  clearInterval(countdownTimer);
+  clearInterval(playTimer);
+  canPlay=false; lock=false; first=null;
+  grid.innerHTML="";
+  levelEl.textContent=levelIndex+1;
+
+  const cfg=LEVELS[levelIndex];
+  timeLeft=cfg.time;
+
+  const ids=PAIRS.slice(0,cfg.pairs);
+  let deck=[];
+
+  ids.forEach(n=>{
+    if(gameMode==="text"){
+      deck.push({pair:n,type:"C"},{pair:n,type:"C"});
+    }else if(gameMode==="image"){
+      deck.push({pair:n,type:"I"},{pair:n,type:"I"});
+    }else{
+      deck.push({pair:n,type:"C"},{pair:n,type:"I"});
+    }
+  });
+
+  deck.sort(()=>Math.random()-0.5);
+
+  grid.style.gridTemplateColumns=
+    `repeat(${Math.ceil(Math.sqrt(deck.length))},1fr)`;
+
+  deck.forEach(d=>{
+    const c=document.createElement("div");
+    c.className="card";
+    c.dataset.pair=d.pair;
+
+    const img=document.createElement("img");
+    img.src=d.type==="C"
+      ?`image/character/C${d.pair}.jpg`
+      :`image/illustration/I${d.pair}.jpg`;
+    c.appendChild(img);
+
+    c.onclick=()=>clickCard(c);
+    grid.appendChild(c);
+  });
+
+  shuffleAndCountdown(cfg.preview);
+}
+
+/* 記憶 → プレイTIME */
+function shuffleAndCountdown(preview){
+  const cards=[...document.querySelectorAll(".card")];
+  const imgs=[...document.querySelectorAll(".card img")];
+  let t=preview;
+  cd.textContent=t;
+
+  countdownTimer=setInterval(()=>{
+    t--;
+    cd.textContent=t>0?t:"START";
+    imgs.forEach(img=>img.style.opacity=Math.max(t/preview,0));
+
+    if(t<0){
+      clearInterval(countdownTimer);
+      imgs.forEach(img=>{
+        img.style.visibility="hidden";
+        img.style.opacity=0;
+      });
+      startPlayTime();
+      canPlay=true;
+    }
+  },1000);
+
+  let step=0;
+  const shuffle=setInterval(()=>{
+    step++;
+    cards.forEach(c=>{
+      c.style.transform=
+        `translate(${(Math.random()-0.5)*360}px,
+                   ${(Math.random()-0.5)*360}px)
+         rotate(${(Math.random()-0.5)*540}deg)`;
+    });
+    if(step>=20){
+      clearInterval(shuffle);
+      cards.forEach(c=>c.style.transform="");
+    }
+  },150);
+}
+
+/* プレイ制限時間 */
+function startPlayTime(){
+  cd.textContent=timeLeft;
+  playTimer=setInterval(()=>{
+    timeLeft--;
+    cd.textContent=timeLeft;
+    if(timeLeft<=0){
+      clearInterval(playTimer);
+      canPlay=false;
+    }
+  },1000);
+}
+
+/* カード */
+function clickCard(card){
+  if(!canPlay||lock) return;
+  if(card.classList.contains("correct")||card.classList.contains("open")) return;
+
+  card.classList.add("open");
+  card.querySelector("img").style.visibility="visible";
+  card.querySelector("img").style.opacity=1;
+
+  if(!first){ first=card; return; }
+  lock=true;
+
+  if(first.dataset.pair===card.dataset.pair){
+    first.classList.remove("open");
+    card.classList.remove("open");
+    first.classList.add("correct");
+    card.classList.add("correct");
+    score+=10; scoreEl.textContent=score;
+    resetTurn();
+    checkClear();
+  }else{
+    first.classList.add("wrong");
+    card.classList.add("wrong");
+    setTimeout(()=>{
+      first.classList.remove("open","wrong");
+      card.classList.remove("open","wrong");
+      first.querySelector("img").style.visibility="hidden";
+      card.querySelector("img").style.visibility="hidden";
+      resetTurn();
+    },800);
+  }
+}
+
+/* クリア判定 */
+function checkClear(){
+  const total=grid.children.length;
+  const cleared=document.querySelectorAll(".card.correct").length;
+  if(cleared===total){
+    clearInterval(playTimer);
+    canPlay=false;
+    cd.textContent="クリア！";
+    setTimeout(()=>{
+      levelIndex++;
+      if(levelIndex>=LEVELS.length){
+        alert("全レベルクリア！");
+        levelIndex=0;
+        score=0;
+        scoreEl.textContent=score;
+      }
+      startLevel();
+    },1200);
+  }
+}
+
+function resetTurn(){ first=null; lock=false; }
+</script>
+</body>
+</html>
